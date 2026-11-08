@@ -79,6 +79,8 @@ public partial class MainWindow : Window
         Fill(PriorityCombo, new Opt[] { new("Below normal (recommended)", "belowNormal"), new("Normal", "normal") }, _settings.MpvPriority);
         MuteSwitch.IsChecked = _settings.Mute;
         ShuffleSwitch.IsChecked = _settings.Shuffle;
+        SyncWallpaperSwitch.IsChecked = _settings.SyncWindowsWallpaper;
+        RestoreWallpaperButton.IsEnabled = WindowsWallpaper.HasOriginal;
         IntervalBox.Text = _settings.IntervalMinutes.ToString();
         StartupSwitch.IsChecked = Registry.CurrentUser.OpenSubKey(RunKey)?.GetValue(RunValue) != null;
         FoldersList.ItemsSource = _settings.Folders.ToList();
@@ -113,6 +115,7 @@ public partial class MainWindow : Window
         _settings.MpvPriority = Value(PriorityCombo);
         _settings.Mute = MuteSwitch.IsChecked == true;
         _settings.Shuffle = ShuffleSwitch.IsChecked == true;
+        _settings.SyncWindowsWallpaper = SyncWallpaperSwitch.IsChecked == true;
         if (int.TryParse(IntervalBox.Text, out int m) && m >= 1 && m <= 1440) _settings.IntervalMinutes = m;
         else IntervalBox.Text = _settings.IntervalMinutes.ToString();
         SaveSoon();
@@ -597,6 +600,16 @@ public partial class MainWindow : Window
         using var key = Registry.CurrentUser.CreateSubKey(RunKey);
         if (StartupSwitch.IsChecked == true) key.SetValue(RunValue, "\"" + Path.Combine(AppContext.BaseDirectory, Paths.EngineExe) + "\"");
         else key.DeleteValue(RunValue, false);
+    }
+
+    void RestoreWallpaper_Click(object sender, RoutedEventArgs e)
+    {
+        // Stop syncing first, otherwise the next video would replace the restored wallpaper again.
+        if (SyncWallpaperSwitch.IsChecked == true) SyncWallpaperSwitch.IsChecked = false;
+        bool ok = WindowsWallpaper.RestoreOriginal();
+        RestoreWallpaperButton.IsEnabled = WindowsWallpaper.HasOriginal;
+        MessageBox.Show(this, ok ? "Your previous Windows wallpaper is back. It shows whenever Phantom Render is closed."
+                                 : "Could not restore the previous wallpaper.", "Phantom Render");
     }
 
     void OpenLog_Click(object sender, RoutedEventArgs e) => OpenPath(Paths.LogFile);

@@ -9,7 +9,7 @@ namespace Wpe.Engine;
 /// </summary>
 public sealed class Engine : Win32Window
 {
-    const nuint TimerPoll = 1, TimerDisplayChange = 2, TimerReattach = 3;
+    const nuint TimerPoll = 1, TimerDisplayChange = 2, TimerReattach = 3, TimerWallpaper = 4;
     const int CmdOpenUi = 6, CmdNext = 1, CmdPause = 2, CmdOpenFolder = 3, CmdReload = 4, CmdOpenSettings = 5, CmdExit = 9;
 
     static readonly uint s_taskbarCreated = Native.RegisterWindowMessage("TaskbarCreated");
@@ -30,6 +30,9 @@ public sealed class Engine : Win32Window
         Log.Write($"engine {typeof(Engine).Assembly.GetName().Version} starting; folders={string.Join(";", _settings.Folders)} mode={_settings.FullscreenMode} monitors={_settings.MonitorMode}");
         _mpvExe = Paths.FindMpv(_settings);
         if (_mpvExe == null) Log.Write("mpv.exe not found; set mpvPath in " + Paths.SettingsFile);
+
+        // Frame grabs from a previous run are no longer needed.
+        try { if (Directory.Exists(Paths.FramesDir)) foreach (var f in Directory.GetFiles(Paths.FramesDir)) File.Delete(f); } catch { }
 
         // At sign-in the desktop may not exist yet: wait (up to 60 s) for the shell's icon layer.
         for (int i = 0; i < 120 && !Desktop.ShellReady(); i++) Thread.Sleep(500);
@@ -67,6 +70,7 @@ public sealed class Engine : Win32Window
         foreach (var h in _hosts)
         {
             Log.Write($"host {h.Id} at {h.Bounds} parent {workerW:X}");
+            h.FrameReady += _ => Native.SetTimer(Handle, TimerWallpaper, 1500, 0);   // batch frames from all screens
             string? pinned = Pinned(h);
             string? file = pinned ?? (previous.TryGetValue(h.Id, out var prev) && prev != null && File.Exists(prev) && InSource(h, prev) ? prev : Pick(h));
             if (file == null) { Log.Write("no videos found"); continue; }
@@ -319,6 +323,26 @@ public sealed class Engine : Win32Window
         }
     }
 
+    /// <summary>
+    /// Sets the Windows wallpaper to the latest frame of each screen's video, laid out like the screens, so
+    /// anything that stops the live wallpaper (closing the app, a crash, sign-out) still shows the same video.
+    /// Runs only when a new video has started playing, never during a game.
+    /// </summary>
+    void SyncWindowsWallpaper()
+    {
+        if (!_settings.SyncWindowsWallpaper) return;
+        var parts = _hosts.Where(h => h.LastFrame != null && File.Exists(h.LastFrame)).ToList();
+        if (parts.Count == 0) return;
+        var monitors = Desktop.Monitors();
+        if (monitors.Count == 0) return;
+        RECT v = Desktop.VirtualBounds(monitors);
+        var layout = parts.Select(h => (h.LastFrame!, new RECT(h.Bounds.Left - v.Left, h.Bounds.Top - v.Top, h.Bounds.Right - v.Left, h.Bounds.Bottom - v.Top)));
+        var sw = Stopwatch.StartNew();
+        if (!GdiPlus.ComposeJpeg(WindowsWallpaper.FramePath, v.Width, v.Height, layout)) { Log.Write("windows wallpaper: compose failed"); return; }
+        bool ok = WindowsWallpaper.Set(WindowsWallpaper.FramePath);
+        Log.Write($"windows wallpaper {(ok ? "set" : "NOT set")} to current frame ({sw.ElapsedMilliseconds} ms)");
+    }
+
     /// <summary>Starts the control panel (a separate process that exits when its window closes).</summary>
     static void OpenUi()
     {
@@ -340,6 +364,7 @@ public sealed class Engine : Win32Window
             {
                 case TimerPoll: Poll(); break;
                 case TimerDisplayChange: Native.KillTimer(h, TimerDisplayChange); Log.Write("display layout changed"); BuildHosts(); break;
+                case TimerWallpaper: Native.KillTimer(h, TimerWallpaper); SyncWindowsWallpaper(); break;
                 case TimerReattach:
                     Native.KillTimer(h, TimerReattach);
                     nint wk = Desktop.GetWorkerW(true);
@@ -396,6 +421,7 @@ public sealed class Engine : Win32Window
         foreach (var h in _hosts) h.Dispose();
         _hosts.Clear();
         _tray?.Dispose();
+        try { WindowsWallpaper.Refresh(); } catch { }   // show the video's frame where the live wallpaper was
         base.Dispose();
     }
 }

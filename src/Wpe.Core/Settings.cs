@@ -20,6 +20,11 @@ public sealed class Settings
     public string Hwdec { get; set; } = "auto-safe";
     /// <summary>"belowNormal" or "normal".</summary>
     public string MpvPriority { get; set; } = "belowNormal";
+    /// <summary>
+    /// Keep the regular Windows wallpaper set to a frame of the playing video, so closing the app (or anything
+    /// else that stops it) shows a picture from the same video.
+    /// </summary>
+    public bool SyncWindowsWallpaper { get; set; } = true;
     /// <summary>Optional explicit path to mpv.exe.</summary>
     public string? MpvPath { get; set; }
     public List<Playlist> Playlists { get; set; } = new();

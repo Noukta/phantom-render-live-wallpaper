@@ -34,6 +34,8 @@ public sealed class MpvClient : IDisposable
         args.Append("--no-config --wid=").Append((long)wid)
             .Append(" --loop-file=inf --keep-open=yes --no-osc --osd-level=0 --input-cursor=no --no-input-default-bindings")
             .Append(" --panscan=1.0 --hwdec=").Append(s.Hwdec)
+            // Frame grabs as JPEG: a 4K PNG is ~25 MB and too slow to write when a game starts.
+            .Append(" --screenshot-format=jpg --screenshot-jpeg-quality=90")
             .Append(" --really-quiet --no-terminal --input-ipc-server=\\\\.\\pipe\\").Append(_pipeName);
         if (s.Mute) args.Append(" --no-audio");
         args.Append(" \"").Append(file).Append('"');

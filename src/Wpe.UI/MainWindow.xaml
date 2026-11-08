@@ -271,6 +271,15 @@
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <CheckBox x:Name="SyncWallpaperSwitch" Style="{StaticResource Switch}" Content="Use a frame of the current video as the Windows wallpaper"
+                                      Checked="Setting_Changed" Unchecked="Setting_Changed" />
+                            <TextBlock Style="{StaticResource Hint}" Margin="48,2,0,8"
+                                       Text="If Phantom Render is closed or the video stops for any reason, your desktop shows a picture from the same video instead of your old wallpaper." />
+                            <Button x:Name="RestoreWallpaperButton" Content="Restore my previous Windows wallpaper" Click="RestoreWallpaper_Click" HorizontalAlignment="Left" Margin="48,0,0,0" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
                         <StackPanel Orientation="Horizontal">
                             <Button Content="Open log" Click="OpenLog_Click" />
                             <Button Content="Open settings file" Click="OpenSettings_Click" />
