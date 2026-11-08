@@ -30,6 +30,12 @@ public sealed class Thumbnails
         return File.Exists(p) ? Load(p) : null;
     }
 
+    /// <summary>
+    /// Pixel width images are decoded at: the card's width times the display scaling, set by the window
+    /// (232 px at 100 %, 348 px at 150 %). Decoding at the real size keeps cards sharp without wasting memory.
+    /// </summary>
+    public static int DecodeWidth { get; set; } = 232;
+
     static BitmapImage? Load(string file)
     {
         try
@@ -37,7 +43,7 @@ public sealed class Thumbnails
             var img = new BitmapImage();
             img.BeginInit();
             img.CacheOption = BitmapCacheOption.OnLoad;   // read now, don't keep the file open
-            img.DecodePixelWidth = 320;
+            img.DecodePixelWidth = DecodeWidth;
             img.UriSource = new Uri(file);
             img.EndInit();
             img.Freeze();
@@ -49,13 +55,28 @@ public sealed class Thumbnails
     // ------------------------------------------------------------ animated previews
 
     /// <summary>
-    /// Hover previews are a short strip of small JPEG frames (3 s at 8 fps) rather than a video file: no codec
-    /// or player needed in the control panel, tiny on disk, and cheap to show.
+    /// Hover previews are a short strip of JPEG frames (3 s at 16 fps, 480 px wide, sharp up to 200 % display
+    /// scaling) rather than a video file: no codec or player needed in the control panel, small on disk.
     /// </summary>
-    public const int PreviewFrames = 24, PreviewFps = 8;
+    public const int PreviewFrames = 48, PreviewFps = 16, PreviewWidth = 480;
     readonly SemaphoreSlim _previewOne = new(1, 1);
 
-    public static string PreviewDir(string video) => Path.ChangeExtension(CachePath(video), null) + "_anim";
+    // The suffix names the preview format, so previews made with older settings are simply made again.
+    const string PreviewSuffix = "_anim16";
+
+    public static string PreviewDir(string video) => Path.ChangeExtension(CachePath(video), null) + PreviewSuffix;
+
+    /// <summary>Deletes previews in older formats (8 fps / 360 px).</summary>
+    public static void RemoveOldPreviews()
+    {
+        try
+        {
+            if (!Directory.Exists(Paths.ThumbsDir)) return;
+            foreach (var d in Directory.GetDirectories(Paths.ThumbsDir, "*_anim*"))
+                if (!d.EndsWith(PreviewSuffix, StringComparison.Ordinal)) Directory.Delete(d, true);
+        }
+        catch { }
+    }
 
     static List<string>? CachedPreview(string video)
     {
@@ -89,7 +110,7 @@ public sealed class Thumbnails
                 {
                     UseShellExecute = false, CreateNoWindow = true,
                     Arguments = $"--no-config --no-audio --no-sub --hwdec=no --start=15% --frames={PreviewFrames} " +
-                                $"--vf=fps={PreviewFps},scale=360:-2 --vo=image --vo-image-format=jpg --vo-image-jpeg-quality=80 " +
+                                $"--vf=fps={PreviewFps},scale={PreviewWidth}:-2 --vo=image --vo-image-format=jpg --vo-image-jpeg-quality=80 " +
                                 $"--vo-image-outdir=\"{tmp}\" --really-quiet --no-terminal \"{video}\"",
                 };
                 using var p = Process.Start(psi);

@@ -49,7 +49,19 @@ public partial class MainWindow : Window
         _engine.ConnectionChanged += async c => { UpdateStatus(); if (c) await RefreshStateAsync(); };
         _engine.EventReceived += async _ => await RefreshStateAsync();
 
-        VersionText.Text = $"Phantom Render {typeof(MainWindow).Assembly.GetName().Version?.ToString(3)} · settings: {Paths.SettingsFile}";
+        // Decode images at the card's real pixel size for this screen's scaling; redo it when the window
+        // moves to a screen with different scaling.
+        Thumbnails.DecodeWidth = CardPixelWidth(VisualTreeHelper.GetDpi(this).DpiScaleX);
+        DpiChanged += (_, e) =>
+        {
+            int w = CardPixelWidth(e.NewDpi.DpiScaleX);
+            if (w == Thumbnails.DecodeWidth) return;
+            Thumbnails.DecodeWidth = w;
+            foreach (var v in _videos) v.Thumb = Thumbnails.LoadCached(v.Path);
+        };
+        _ = Task.Run(Thumbnails.RemoveOldPreviews);
+
+        VersionText.Text =$"Phantom Render {typeof(MainWindow).Assembly.GetName().Version?.ToString(3)} · settings: {Paths.SettingsFile}";
         LoadSettingsIntoUi();
         LoadLibrary();
         _stateTimer.Start();
@@ -251,6 +263,9 @@ public partial class MainWindow : Window
             if (!Thumbnails.HasPreview(v.Path)) await Task.Run(() => _thumbs.GetPreviewAsync(v.Path, mpv, false, _closing.Token));
         }
     }
+
+    /// <summary>Card image width in physical pixels (cards are 232 wide in WPF units).</summary>
+    static int CardPixelWidth(double scale) => (int)Math.Ceiling(232 * Math.Max(1.0, scale));
 
     // ---------------------------------------------------------------- hover previews
 
