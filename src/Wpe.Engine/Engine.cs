@@ -152,7 +152,7 @@ public sealed class Engine : Win32Window
     void UpdateTooltip()
     {
         string state = _paused ? "paused (" + (_manualPause ? "manual" : _pauseReason) + ")" : "playing";
-        _tray?.SetTooltip("Wallpaper Engine - " + state);
+        _tray?.SetTooltip("Phantom Render - " + state);
     }
 
     // ---------- control pipe ----------

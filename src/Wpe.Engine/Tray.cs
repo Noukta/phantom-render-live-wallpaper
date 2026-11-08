@@ -17,7 +17,7 @@ public sealed unsafe class Tray : IDisposable
         d.uFlags = Native.NIF_MESSAGE | Native.NIF_ICON | Native.NIF_TIP | Native.NIF_SHOWTIP;
         d.uCallbackMessage = CallbackMessage;
         d.hIcon = Native.LoadIcon(0, 32512 /* IDI_APPLICATION */);
-        SetTip(ref d, "Wallpaper Engine");
+        SetTip(ref d, "Phantom Render");
         _added = Native.Shell_NotifyIcon(Native.NIM_ADD, &d) != 0;
         d.uVersion = 4;
         Native.Shell_NotifyIcon(Native.NIM_SETVERSION, &d);

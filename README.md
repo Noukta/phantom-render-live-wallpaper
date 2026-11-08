@@ -1,6 +1,6 @@
-# Wallpaper Engine (working name)
+# Phantom Render – live wallpaper for gamers
 
-Video wallpapers for Windows, built for gamers. It's light while you play, and it gets out of the way when a game is fullscreen.
+Live video wallpapers for Windows, built for gamers. It's light while you play, and it gets out of the way when a game is fullscreen.
 
 - Plays your videos behind the desktop icons with [mpv](https://mpv.io) and hardware decoding.
 - Rotates through your folders on a timer, with a different wallpaper on each monitor or one spanning them all.
