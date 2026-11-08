@@ -1,0 +1,12 @@
+bin/
+obj/
+publish/
+artifacts/
+*.user
+.vs/
+# mpv is downloaded, not committed (license + size)
+mpv.exe
+tools/mpv/
+# legacy v0.1 build outputs and logs
+WallpaperEngine.exe
+wpe.log
