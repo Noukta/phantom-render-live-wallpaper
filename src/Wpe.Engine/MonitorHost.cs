@@ -36,10 +36,34 @@ public sealed unsafe class MonitorHost : Win32Window
     {
         Id = id;
         Bounds = bounds;
+        CreateWindow(workerW);
+    }
+
+    void CreateWindow(nint workerW)
+    {
         Create("WpeHost", Native.WS_EX_NOACTIVATE | Native.WS_EX_TOOLWINDOW,
             Native.WS_CHILD | Native.WS_VISIBLE | Native.WS_CLIPCHILDREN | Native.WS_CLIPSIBLINGS,
-            0, 0, bounds.Width, bounds.Height, workerW);
+            0, 0, Bounds.Width, Bounds.Height, workerW);
         Place(workerW);
+    }
+
+    /// <summary>False once the window was destroyed from outside, e.g. together with a WorkerW the shell replaced.</summary>
+    public bool WindowAlive => Handle != 0 && Native.IsWindow(Handle) != 0;
+
+    /// <summary>
+    /// Recreates a window the shell destroyed (it does so with the WorkerW's children when it replaces the
+    /// WorkerW, e.g. after the Windows wallpaper changes) and restarts mpv in it. The video, its last frame and
+    /// the pause state are kept, so this does not count as a new video.
+    /// </summary>
+    public void RecreateWindow(nint workerW, string? mpvExe, Settings s)
+    {
+        DestroyHandle();
+        CreateWindow(workerW);
+        if (Status == HostStatus.Stopping) { FinishStop(); return; }   // mpv lost its window: no frame to grab
+        if (Status is not (HostStatus.Playing or HostStatus.Frozen)) return;   // a stopped host just repaints its still
+        if (mpvExe == null || Current == null) { Mpv.Stop(); Status = HostStatus.Empty; return; }
+        Mpv.Start(mpvExe, Handle, Current, s);
+        if (Status == HostStatus.Frozen) Mpv.Command("set_property", "pause", "true");
     }
 
     /// <summary>Parents the window to the given WorkerW and positions it over its monitor.</summary>

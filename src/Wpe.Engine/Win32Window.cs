@@ -54,7 +54,10 @@ public abstract unsafe class Win32Window : IDisposable
         return Native.DefWindowProc(h, msg, w, l);
     }
 
-    public virtual void Dispose()
+    public virtual void Dispose() => DestroyHandle();
+
+    /// <summary>Destroys the window (a no-op for a handle that is already gone) and forgets it.</summary>
+    protected void DestroyHandle()
     {
         if (Handle != 0)
         {

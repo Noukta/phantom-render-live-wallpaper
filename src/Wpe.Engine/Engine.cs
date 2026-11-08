@@ -144,9 +144,15 @@ public sealed class Engine : Win32Window
     void Poll()
     {
         // The shell can recreate its desktop windows (e.g. right after sign-in); follow it.
+        // When it replaces its WorkerW it destroys our windows with it: recreate them, or nothing is shown again
+        // (and Next, rotation and resume have no visible effect) until the engine restarts.
         nint want = Desktop.GetWorkerW(false);
         foreach (var h in _hosts)
-            if (want != 0 && !h.IsAttachedTo(want)) { Log.Write($"{h.Id}: desktop window changed, re-attaching"); h.Place(want); }
+        {
+            if (want == 0) break;
+            if (!h.WindowAlive) { Log.Write($"{h.Id}: wallpaper window was destroyed with the desktop, recreating"); h.RecreateWindow(want, _mpvExe, _settings); }
+            else if (!h.IsAttachedTo(want)) { Log.Write($"{h.Id}: desktop window changed, re-attaching"); h.Place(want); }
+        }
 
         ApplyRules();
 
