@@ -102,6 +102,29 @@ public sealed unsafe class MonitorHost : Win32Window
         if (_pendingFrame != null) { TryDelete(_pendingFrame); _pendingFrame = null; }
     }
 
+    /// <summary>The verdict currently applied to this host.</summary>
+    public Verdict Applied { get; private set; } = Verdict.Play;
+
+    /// <summary>Moves the host to the state the verdict asks for. Returns true if the verdict changed.</summary>
+    public bool Apply(Verdict v, string? mpvExe, Settings s)
+    {
+        bool changed = v.Action != Applied.Action || v.Reason != Applied.Reason;
+        Applied = v;
+        switch (v.Action)
+        {
+            case PauseAction.None:
+                if (Status != HostStatus.Playing && mpvExe != null) Resume(mpvExe, s);
+                break;
+            case PauseAction.Freeze:
+                if (Status == HostStatus.Playing) Freeze();   // a stopped host stays stopped: cheaper
+                break;
+            case PauseAction.Stop:
+                if (Status is HostStatus.Playing or HostStatus.Frozen) BeginStop();
+                break;
+        }
+        return changed;
+    }
+
     public void Resume(string mpvExe, Settings s)
     {
         if (Current == null) return;

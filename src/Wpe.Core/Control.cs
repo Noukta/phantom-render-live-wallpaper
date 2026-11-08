@@ -49,6 +49,8 @@ public sealed class EngineState
     /// <summary>Why the wallpaper is paused right now (null if playing).</summary>
     public string? PauseReason { get; set; }
     public string MonitorMode { get; set; } = "";
+    /// <summary>Other programs' 3D GPU use in percent (only when the GPU rule is enabled).</summary>
+    public double? GpuLoad { get; set; }
     public List<MonitorState> Monitors { get; set; } = new();
 }
 
@@ -60,8 +62,10 @@ public sealed class MonitorState
     public int Width { get; set; }
     public int Height { get; set; }
     public string? Current { get; set; }
-    /// <summary>"playing", "frozen", "stopped" or "empty".</summary>
+    /// <summary>"playing", "frozen", "stopping", "stopped" or "empty".</summary>
     public string Status { get; set; } = "";
+    /// <summary>Why this screen is paused (null if playing).</summary>
+    public string? PauseReason { get; set; }
 }
 
 public sealed class EngineStats

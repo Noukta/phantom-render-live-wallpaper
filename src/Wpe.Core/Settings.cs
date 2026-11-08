@@ -10,8 +10,10 @@ public sealed class Settings
     public List<string> Folders { get; set; } = new();
     public int IntervalMinutes { get; set; } = 10;
     public bool Shuffle { get; set; } = true;
-    /// <summary>"freeze" pauses the video, "stop" closes mpv and shows a still frame.</summary>
+    /// <summary>Action while a fullscreen app/game is in front: "stop", "freeze" or "none".</summary>
     public string FullscreenMode { get; set; } = "stop";
+    /// <summary>The other pause rules.</summary>
+    public PauseRules Rules { get; set; } = new();
     public bool Mute { get; set; } = true;
     /// <summary>"perMonitor" = one wallpaper per screen, "span" = one wallpaper across all screens.</summary>
     public string MonitorMode { get; set; } = "perMonitor";
@@ -28,7 +30,13 @@ public sealed class Settings
         try
         {
             if (File.Exists(Paths.SettingsFile))
-                return JsonSerializer.Deserialize(File.ReadAllText(Paths.SettingsFile), WpeJson.Default.Settings) ?? new Settings();
+            {
+                string text = File.ReadAllText(Paths.SettingsFile);
+                var loaded = JsonSerializer.Deserialize(text, WpeJson.Default.Settings) ?? new Settings();
+                // Write back so options added in newer versions show up in the file with their defaults.
+                if (JsonSerializer.Serialize(loaded, WpeJson.Default.Settings) != text) loaded.Save();
+                return loaded;
+            }
         }
         catch (Exception ex) { Log.Write("settings load failed: " + ex.Message); }
         var s = ImportLegacy() ?? new Settings();
@@ -84,6 +92,42 @@ public sealed class Settings
         }
         return result;
     }
+}
+
+/// <summary>
+/// Pause rules. Every action is "none", "freeze" (pause the video) or "stop" (close mpv, show a still frame);
+/// when several rules match, the strictest action wins.
+/// </summary>
+public sealed class PauseRules
+{
+    /// <summary>"all" pauses every screen; "monitor" pauses only the screen the fullscreen/maximized window is on.</summary>
+    public string Scope { get; set; } = "all";
+    /// <summary>A maximized window is focused (the wallpaper is hidden anyway).</summary>
+    public string Maximized { get; set; } = "freeze";
+    public string OnBattery { get; set; } = "stop";
+    public string Locked { get; set; } = "stop";
+    public string DisplayOff { get; set; } = "stop";
+    public List<AppRule> Apps { get; set; } = new();
+    public GpuRule Gpu { get; set; } = new();
+    /// <summary>Testing aid: behave as if on battery.</summary>
+    public bool DebugOnBattery { get; set; }
+}
+
+public sealed class AppRule
+{
+    /// <summary>Executable name, e.g. "VALORANT-Win64-Shipping.exe" (".exe" optional, case-insensitive).</summary>
+    public string Exe { get; set; } = "";
+    /// <summary>"running" (anywhere) or "focused" (in front).</summary>
+    public string When { get; set; } = "running";
+    public string Action { get; set; } = "stop";
+}
+
+public sealed class GpuRule
+{
+    public bool Enabled { get; set; }
+    /// <summary>3D GPU use by other programs, in percent, that triggers the rule (sustained for ~6 s).</summary>
+    public int Threshold { get; set; } = 85;
+    public string Action { get; set; } = "freeze";
 }
 
 [JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,

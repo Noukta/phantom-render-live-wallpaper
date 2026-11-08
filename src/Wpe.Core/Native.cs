@@ -62,6 +62,13 @@ public unsafe struct NOTIFYICONDATAW
 }
 
 [StructLayout(LayoutKind.Sequential)]
+public struct SYSTEM_POWER_STATUS
+{
+    public byte ACLineStatus, BatteryFlag, BatteryLifePercent, SystemStatusFlag;
+    public uint BatteryLifeTime, BatteryFullLifeTime;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 public struct JOBOBJECT_BASIC_LIMIT_INFORMATION
 {
     public long PerProcessUserTimeLimit; public long PerJobUserTimeLimit; public uint LimitFlags;
@@ -194,6 +201,43 @@ public static unsafe partial class Native
     public static partial int SetInformationJobObject(nint job, int cls, void* info, uint len);
     [LibraryImport("kernel32.dll")]
     public static partial int AssignProcessToJobObject(nint job, nint process);
+
+    [LibraryImport("user32.dll")]
+    public static partial int IsZoomed(nint h);
+    [LibraryImport("user32.dll")]
+    public static partial int IsWindowVisible(nint h);
+    [LibraryImport("user32.dll")]
+    public static partial nint RegisterPowerSettingNotification(nint h, Guid* setting, uint flags);
+    [LibraryImport("wtsapi32.dll")]
+    public static partial int WTSRegisterSessionNotification(nint h, uint flags);
+    [LibraryImport("wtsapi32.dll")]
+    public static partial int WTSUnRegisterSessionNotification(nint h);
+    [LibraryImport("kernel32.dll")]
+    public static partial int GetSystemPowerStatus(out SYSTEM_POWER_STATUS s);
+    [LibraryImport("kernel32.dll")]
+    public static partial nint OpenProcess(uint access, int inherit, uint pid);
+    [LibraryImport("kernel32.dll", EntryPoint = "QueryFullProcessImageNameW")]
+    public static partial int QueryFullProcessImageName(nint process, uint flags, char* buf, ref uint size);
+    [LibraryImport("kernel32.dll")]
+    public static partial int CloseHandle(nint h);
+
+    public const uint WM_WTSSESSION_CHANGE = 0x02B1, WM_POWERBROADCAST = 0x0218, PBT_POWERSETTINGCHANGE = 0x8013;
+    public static readonly Guid GUID_CONSOLE_DISPLAY_STATE = new("6FE69556-704A-47A0-8F24-C28D936FDA47");
+
+    /// <summary>File name (e.g. "game.exe") of a process, or null.</summary>
+    public static string? ProcessExeName(uint pid)
+    {
+        nint h = OpenProcess(0x1000 /* PROCESS_QUERY_LIMITED_INFORMATION */, 0, pid);
+        if (h == 0) return null;
+        try
+        {
+            char* buf = stackalloc char[1024];
+            uint size = 1024;
+            if (QueryFullProcessImageName(h, 0, buf, ref size) == 0) return null;
+            return Path.GetFileName(new string(buf, 0, (int)size));
+        }
+        finally { CloseHandle(h); }
+    }
 
     public static string ClassName(nint h)
     {

@@ -14,16 +14,14 @@ public sealed class Engine : Win32Window
 
     static readonly uint s_taskbarCreated = Native.RegisterWindowMessage("TaskbarCreated");
 
-    readonly uint _pid = (uint)Environment.ProcessId;
     readonly Random _rnd = new();
     readonly List<MonitorHost> _hosts = new();
     Settings _settings = Settings.Load();
     string? _mpvExe;
     Tray? _tray;
     ControlServer? _control;
+    readonly RuleEngine _rules = new();
     bool _manualPause;
-    string? _pauseReason;   // set while a rule (e.g. fullscreen app) pauses the wallpaper
-    bool _paused;
     TimeSpan _lastEngineCpu, _lastMpvCpu;
     DateTime _lastStatsAt;
 
@@ -41,6 +39,10 @@ public sealed class Engine : Win32Window
         Create("WpeEngine", Native.WS_EX_TOOLWINDOW, Native.WS_POPUP, 0, 0, 0, 0, 0);
         _tray = new Tray(Handle);
         _control = new ControlServer(Handle);
+        // Lock/unlock and display on/off arrive as messages, so these rules cost nothing between events.
+        Native.WTSRegisterSessionNotification(Handle, 0);
+        Guid display = Native.GUID_CONSOLE_DISPLAY_STATE;
+        unsafe { Native.RegisterPowerSettingNotification(Handle, &display, 0); }
         BuildHosts();
         Native.SetTimer(Handle, TimerPoll, 1000, 0);
     }
@@ -67,8 +69,7 @@ public sealed class Engine : Win32Window
             Log.Write($"host {h.Id} at {h.Bounds} parent {workerW:X}");
             string? file = previous.TryGetValue(h.Id, out var prev) && prev != null && File.Exists(prev) ? prev : Pick(h);
             if (file == null) { Log.Write("no videos found"); continue; }
-            if (_paused) h.SetPendingFile(file);
-            else if (_mpvExe != null) h.Play(_mpvExe, file, _settings);
+            if (_mpvExe != null) h.Play(_mpvExe, file, _settings);   // the next poll pauses it if a rule says so
             h.NextChange = DateTime.UtcNow.AddMinutes(_settings.IntervalMinutes);
         }
         UpdateTooltip();
@@ -93,7 +94,7 @@ public sealed class Engine : Win32Window
 
     void SetWallpaper(MonitorHost h, string file)
     {
-        if (_paused || _mpvExe == null) h.SetPendingFile(file);
+        if (h.Applied.Action != PauseAction.None || _mpvExe == null) h.SetPendingFile(file);
         else h.Play(_mpvExe, file, _settings);
         h.NextChange = DateTime.UtcNow.AddMinutes(_settings.IntervalMinutes);
         Log.Write($"{h.Id}: {file}");
@@ -115,43 +116,40 @@ public sealed class Engine : Win32Window
         foreach (var h in _hosts)
             if (want != 0 && !h.IsAttachedTo(want)) { Log.Write($"{h.Id}: desktop window changed, re-attaching"); h.Place(want); }
 
-        _pauseReason = Desktop.FullscreenAppMonitor(_pid) != null ? "fullscreen app" : null;
-        ApplyPauseState();
+        ApplyRules();
 
         foreach (var h in _hosts)
         {
             h.Tick();
-            if (_paused || _mpvExe == null) continue;
+            if (h.Applied.Action != PauseAction.None || _mpvExe == null) continue;
             h.EnsureRunning(_mpvExe, _settings);
             if (DateTime.UtcNow >= h.NextChange) Next(h);
         }
     }
 
-    void ApplyPauseState()
+    void ApplyRules()
     {
-        bool shouldPause = _manualPause || _pauseReason != null;
-        if (shouldPause == _paused) return;
-        _paused = shouldPause;
-        string reason = _manualPause ? "paused from tray" : _pauseReason ?? "";
-        if (_paused)
+        var verdicts = _rules.Evaluate(_settings, _hosts, _manualPause);
+        bool any = false;
+        foreach (var h in _hosts)
         {
-            Log.Write("pausing: " + reason);
-            foreach (var h in _hosts)
-                if (_settings.FullscreenMode == "freeze" && !_manualPause) h.Freeze();
-                else h.BeginStop();
+            var v = verdicts.TryGetValue(h.Id, out var x) ? x : Verdict.Play;
+            if (!h.Apply(v, _mpvExe, _settings)) continue;
+            any = true;
+            string what = v.Action == PauseAction.None ? "playing" : v.Action.ToString().ToLowerInvariant() + ": " + v.Reason;
+            Log.Write($"{h.Id}: {what}");
+            _control?.Broadcast(new ControlEvent
+            {
+                Event = v.Action == PauseAction.None ? "resumed" : "paused", Monitor = h.Id, Reason = v.Reason,
+            });
         }
-        else
-        {
-            Log.Write("resuming");
-            if (_mpvExe != null) foreach (var h in _hosts) h.Resume(_mpvExe, _settings);
-        }
-        _control?.Broadcast(new ControlEvent { Event = _paused ? "paused" : "resumed", Reason = _paused ? reason : null });
-        UpdateTooltip();
+        if (any) UpdateTooltip();
     }
 
     void UpdateTooltip()
     {
-        string state = _paused ? "paused (" + (_manualPause ? "manual" : _pauseReason) + ")" : "playing";
+        var paused = _hosts.Where(h => h.Applied.Action != PauseAction.None).Select(h => h.Applied.Reason).Distinct().ToList();
+        string state = paused.Count == 0 ? "playing" : "paused (" + string.Join(", ", paused) + ")";
         _tray?.SetTooltip("Phantom Render - " + state);
     }
 
@@ -174,7 +172,7 @@ public sealed class Engine : Win32Window
                 return new ControlResponse { Ok = true, State = State() };
             case Control.Pause:
                 _manualPause = r.Paused ?? !_manualPause;
-                ApplyPauseState();
+                ApplyRules();
                 return new ControlResponse { Ok = true, State = State() };
             case Control.ReloadSettings:
                 Reload();
@@ -194,12 +192,13 @@ public sealed class Engine : Win32Window
     EngineState State() => new()
     {
         ManualPause = _manualPause,
-        PauseReason = _paused ? (_manualPause ? "paused from tray" : _pauseReason) : null,
+        PauseReason = _hosts.Select(h => h.Applied.Reason).FirstOrDefault(r => r != null),
         MonitorMode = _settings.MonitorMode,
+        GpuLoad = _rules.LastGpu,
         Monitors = _hosts.Select(h => new MonitorState
         {
             Id = h.Id, X = h.Bounds.Left, Y = h.Bounds.Top, Width = h.Bounds.Width, Height = h.Bounds.Height,
-            Current = h.Current, Status = h.Status.ToString().ToLowerInvariant(),
+            Current = h.Current, Status = h.Status.ToString().ToLowerInvariant(), PauseReason = h.Applied.Reason,
         }).ToList(),
     };
 
@@ -255,7 +254,7 @@ public sealed class Engine : Win32Window
         switch (cmd)
         {
             case CmdNext: foreach (var h in _hosts) Next(h); break;
-            case CmdPause: _manualPause = !_manualPause; ApplyPauseState(); break;
+            case CmdPause: _manualPause = !_manualPause; ApplyRules(); break;
             case CmdOpenFolder: if (_settings.Folders.Count > 0) Open(_settings.Folders[0]); break;
             case CmdOpenSettings: Open(Paths.SettingsFile); break;
             case CmdReload: Reload(); break;
@@ -293,6 +292,27 @@ public sealed class Engine : Win32Window
         }
         if (msg == ControlServer.WakeMessage) { _control?.ProcessQueue(HandleRequest); return 0; }
         if (msg == Native.WM_DISPLAYCHANGE) { Native.SetTimer(h, TimerDisplayChange, 1500, 0); return 0; }
+        if (msg == Native.WM_WTSSESSION_CHANGE)
+        {
+            // 7 = WTS_SESSION_LOCK, 8 = WTS_SESSION_UNLOCK
+            if (w == 7 || w == 8) { _rules.Locked = w == 7; Log.Write(_rules.Locked ? "session locked" : "session unlocked"); ApplyRules(); }
+            return 0;
+        }
+        if (msg == Native.WM_POWERBROADCAST && w == (nint)Native.PBT_POWERSETTINGCHANGE && l != 0)
+        {
+            unsafe
+            {
+                // POWERBROADCAST_SETTING: GUID, DWORD length, then the data (0 = off, 1 = on, 2 = dimmed).
+                byte* p = (byte*)l;
+                if (*(Guid*)p == Native.GUID_CONSOLE_DISPLAY_STATE)
+                {
+                    _rules.DisplayOff = *(uint*)(p + 20) == 0;
+                    Log.Write(_rules.DisplayOff ? "display off" : "display on");
+                    ApplyRules();
+                }
+            }
+            return 1;
+        }
         if (msg == s_taskbarCreated && s_taskbarCreated != 0)
         {
             Log.Write("explorer restarted");
@@ -305,6 +325,8 @@ public sealed class Engine : Win32Window
 
     public override void Dispose()
     {
+        if (Handle != 0) Native.WTSUnRegisterSessionNotification(Handle);
+        _rules.Dispose();
         _control?.Dispose();
         foreach (var h in _hosts) h.Dispose();
         _hosts.Clear();

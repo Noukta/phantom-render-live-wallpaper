@@ -26,14 +26,31 @@ scripts\build.ps1       # publishes publish\WallpaperEngine.exe + mpv.exe
 | `folders` | `[]` | folders scanned for videos (recursive) |
 | `intervalMinutes` | `10` | time between automatic changes |
 | `shuffle` | `true` | random order, otherwise alphabetical |
-| `fullscreenMode` | `stop` | `freeze` (pause the video) or `stop` (close mpv, show a still frame) |
+| `fullscreenMode` | `stop` | action while a fullscreen app or game is in front |
 | `mute` | `true` | play without audio |
 | `monitorMode` | `perMonitor` | `perMonitor` or `span` |
 | `hwdec` | `auto-safe` | mpv hardware decoder |
 | `mpvPriority` | `belowNormal` | process priority of mpv |
 | `mpvPath` | – | explicit path to mpv.exe |
 
-The log is at `%LOCALAPPDATA%\WallpaperEngine\engine.log`.
+### Pause rules
+
+Each action is `none`, `freeze` (pause the video, keep the frame) or `stop` (close mpv and show a still frame, so it uses no GPU or VRAM). When several rules match, the strictest one wins.
+
+| key under `rules` | default | pauses when |
+|---|---|---|
+| (`fullscreenMode`, top level) | `stop` | a fullscreen or borderless app/game is focused |
+| `maximized` | `freeze` | a maximized window is focused (it hides the wallpaper anyway) |
+| `onBattery` | `stop` | the laptop is unplugged |
+| `locked` | `stop` | the screen is locked |
+| `displayOff` | `stop` | the display turns off |
+| `apps` | `[]` | a listed app is running or focused, e.g. `{"exe": "VALORANT-Win64-Shipping.exe", "when": "running", "action": "stop"}`; `when` is `running` or `focused` |
+| `gpu` | off | other programs use more than `threshold` % of the GPU's 3D engine for about 6 s: `{"enabled": true, "threshold": 85, "action": "freeze"}` |
+| `scope` | `all` | `all` pauses every screen; `monitor` pauses only the screen the fullscreen or maximized window is on |
+
+Lock and display changes arrive as Windows notifications, so they cost nothing while waiting. The process list for `running` rules is read every 5 s, and only when such a rule exists. The GPU counters are read every 2 s, only when the GPU rule is on.
+
+The log is at `%LOCALAPPDATA%\WallpaperEngine\engine.log`. It records every pause along with its reason.
 
 ## Control pipe
 

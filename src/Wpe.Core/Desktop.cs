@@ -77,28 +77,32 @@ public static unsafe class Desktop
         return new RECT(all.Min(m => m.Bounds.Left), all.Min(m => m.Bounds.Top), all.Max(m => m.Bounds.Right), all.Max(m => m.Bounds.Bottom));
     }
 
+    /// <summary>What is in front right now. Pid is 0 when the shell/desktop itself is focused.</summary>
+    public readonly record struct ForegroundInfo(uint Pid, string? MonitorId, bool Fullscreen, bool Maximized);
+
     /// <summary>
-    /// True when the focused window is a fullscreen app or game (exclusive or borderless).
-    /// Returns the monitor id the app covers, or null.
+    /// Describes the focused window: whether it is a fullscreen app or game (exclusive or borderless),
+    /// whether it is maximized, and which monitor it is on.
     /// </summary>
-    public static string? FullscreenAppMonitor(uint ownPid)
+    public static ForegroundInfo Foreground(uint ownPid)
     {
-        nint fg = Native.GetForegroundWindow();
         bool shellSaysBusy = Native.SHQueryUserNotificationState(out int s) == 0 && (s == 2 || s == 3 || s == 4);
-        if (fg == 0) return null;
+        nint fg = Native.GetForegroundWindow();
+        if (fg == 0) return new(0, null, shellSaysBusy, false);
         string cls = Native.ClassName(fg);
-        if (cls is "Progman" or "WorkerW" or "Shell_TrayWnd" or "Shell_SecondaryTrayWnd") return shellSaysBusy ? "*" : null;
+        if (cls is "Progman" or "WorkerW" or "Shell_TrayWnd" or "Shell_SecondaryTrayWnd")
+            return new(0, null, shellSaysBusy, false);
         Native.GetWindowThreadProcessId(fg, out uint pid);
-        if (pid == ownPid) return null;
+        if (pid == ownPid) return new(0, null, false, false);
 
         nint mon = Native.MonitorFromWindow(fg, 2 /* MONITOR_DEFAULTTONEAREST */);
         MONITORINFOEXW mi = default;
         mi.cbSize = (uint)sizeof(MONITORINFOEXW);
-        if (Native.GetMonitorInfo(mon, &mi) == 0) return shellSaysBusy ? "*" : null;
+        if (Native.GetMonitorInfo(mon, &mi) == 0) return new(pid, null, shellSaysBusy, false);
         string id = new string(mi.szDevice);
-        if (shellSaysBusy) return id;
-        if (Native.GetWindowRect(fg, out RECT r) == 0) return null;
-        RECT b = mi.rcMonitor;
-        return r.Left <= b.Left && r.Top <= b.Top && r.Right >= b.Right && r.Bottom >= b.Bottom ? id : null;
+        bool covers = Native.GetWindowRect(fg, out RECT r) != 0 && r.Left <= mi.rcMonitor.Left && r.Top <= mi.rcMonitor.Top
+            && r.Right >= mi.rcMonitor.Right && r.Bottom >= mi.rcMonitor.Bottom;
+        bool maximized = Native.IsZoomed(fg) != 0 && Native.IsWindowVisible(fg) != 0;
+        return new(pid, id, shellSaysBusy || covers, maximized);
     }
 }
