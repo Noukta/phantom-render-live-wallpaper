@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wpe.Core", "src\Wpe.Core\Wp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wpe.Engine", "src\Wpe.Engine\Wpe.Engine.csproj", "{D8D5715F-8223-48B8-89A9-A3C6E20365C8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wpe.UI", "src\Wpe.UI\Wpe.UI.csproj", "{7D3E9583-3B22-48A1-B8B6-9D51B78C8F77}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -26,9 +28,14 @@ Global
 		{D8D5715F-8223-48B8-89A9-A3C6E20365C8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D8D5715F-8223-48B8-89A9-A3C6E20365C8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D8D5715F-8223-48B8-89A9-A3C6E20365C8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7D3E9583-3B22-48A1-B8B6-9D51B78C8F77}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7D3E9583-3B22-48A1-B8B6-9D51B78C8F77}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7D3E9583-3B22-48A1-B8B6-9D51B78C8F77}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7D3E9583-3B22-48A1-B8B6-9D51B78C8F77}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{CDC5CE9D-6C18-479D-B93C-72C8AA222844} = {57CD767F-6A3C-4410-9E42-6EB69E12E208}
 		{D8D5715F-8223-48B8-89A9-A3C6E20365C8} = {57CD767F-6A3C-4410-9E42-6EB69E12E208}
+		{7D3E9583-3B22-48A1-B8B6-9D51B78C8F77} = {57CD767F-6A3C-4410-9E42-6EB69E12E208}
 	EndGlobalSection
 EndGlobal

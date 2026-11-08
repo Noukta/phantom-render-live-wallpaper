@@ -6,7 +6,20 @@ Live video wallpapers for Windows, built for gamers. It's light while you play, 
 - Rotates through your folders on a timer, with a different wallpaper on each monitor or one spanning them all.
 - When a fullscreen or borderless game is in front, it either **freezes** the video or **stops** the player and shows a still frame. In stop mode it uses no GPU or VRAM.
 - It doesn't inject anything into games or hook them, so it doesn't interfere with anti-cheat.
-- The engine is a small native (NativeAOT) exe. A control panel is coming.
+- The engine is a small native (NativeAOT) exe, about 16 MB of RAM and ~0% CPU while idle.
+- The control panel (`PhantomRender.exe`) is a separate program you open from the tray. When you close it, it's gone, so it costs nothing while you play.
+
+## Control panel
+
+- **Library:** your folders as a thumbnail grid. Double-click to show a video now. Right-click to pin it to a screen or add it to a playlist.
+- **Playlists:** ordered or shuffled, each with its own interval.
+- **Screens:** one wallpaper per screen or one across all of them, the playlist for each screen, and pinned wallpapers.
+- **Game mode:** every pause rule, plus a game/app list you can fill from running programs or by browsing for an `.exe`.
+- **Performance:** live RAM and CPU for the engine and the video player, hardware decoding and priority.
+- **General:** start with Windows, the default interval, logs.
+
+Thumbnails are made once with mpv at idle priority and cached. While a game rule is active, no thumbnails are made.
+The control panel needs the [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0). The engine doesn't.
 
 ## Build
 

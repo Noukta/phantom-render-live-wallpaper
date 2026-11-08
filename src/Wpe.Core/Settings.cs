@@ -22,6 +22,14 @@ public sealed class Settings
     public string MpvPriority { get; set; } = "belowNormal";
     /// <summary>Optional explicit path to mpv.exe.</summary>
     public string? MpvPath { get; set; }
+    public List<Playlist> Playlists { get; set; } = new();
+    /// <summary>Per-screen choices, keyed by monitor id (e.g. \\.\DISPLAY1) or "span".</summary>
+    public Dictionary<string, ScreenAssignment> Screens { get; set; } = new();
+
+    public Playlist? FindPlaylist(string? name) =>
+        name == null ? null : Playlists.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+
+    public ScreenAssignment? ScreenFor(string id) => Screens.TryGetValue(id, out var a) ? a : null;
 
     public static readonly string[] VideoExtensions = { ".mp4", ".mkv", ".webm", ".avi", ".mov", ".gif" };
 
@@ -92,6 +100,23 @@ public sealed class Settings
         }
         return result;
     }
+}
+
+public sealed class Playlist
+{
+    public string Name { get; set; } = "";
+    public List<string> Items { get; set; } = new();
+    public bool Shuffle { get; set; } = true;
+    /// <summary>Minutes between changes; null uses the global interval.</summary>
+    public int? IntervalMinutes { get; set; }
+}
+
+public sealed class ScreenAssignment
+{
+    /// <summary>Playlist to rotate through; null means every video in the library folders.</summary>
+    public string? Playlist { get; set; }
+    /// <summary>A pinned wallpaper: shown permanently, no rotation.</summary>
+    public string? Pinned { get; set; }
 }
 
 /// <summary>

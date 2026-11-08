@@ -1,0 +1,284 @@
+<Window x:Class="Wpe.UI.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Phantom Render" Width="1180" Height="760" MinWidth="900" MinHeight="560"
+        Background="{StaticResource Bg}" WindowStartupLocation="CenterScreen"
+        UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
+
+    <TabControl x:Name="Tabs" Style="{StaticResource Nav}" SelectionChanged="Tabs_SelectionChanged">
+        <TabControl.Tag>
+            <Border Background="{StaticResource Raised}" CornerRadius="8" Padding="12,10">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse x:Name="StatusDot" Width="8" Height="8" Fill="{StaticResource Muted}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                        <TextBlock x:Name="StatusText" Text="Connecting..." FontWeight="SemiBold" />
+                    </StackPanel>
+                    <TextBlock x:Name="StatusDetail" Style="{StaticResource Hint}" Margin="16,2,0,8" />
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="PauseButton" Content="Pause" Click="Pause_Click" />
+                        <Button x:Name="NextButton" Content="Next" Click="NextAll_Click" />
+                    </StackPanel>
+                    <Button x:Name="StartEngineButton" Content="Start engine" Style="{StaticResource Primary}" Click="StartEngine_Click"
+                            Visibility="Collapsed" Margin="0,8,0,0" HorizontalAlignment="Left" />
+                </StackPanel>
+            </Border>
+        </TabControl.Tag>
+
+        <!-- Library -->
+        <TabItem Header="Library">
+            <DockPanel Margin="24,20,24,0">
+                <StackPanel DockPanel.Dock="Top">
+                    <TextBlock Text="Library" Style="{StaticResource H1}" />
+                    <TextBlock Style="{StaticResource Hint}" Text="Double-click a video to show it now. Right-click for more: pin it to a screen or add it to a playlist." />
+                    <DockPanel Margin="0,14,0,0">
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                            <Button Content="Add folder..." Click="AddFolder_Click" />
+                            <Button Content="Rescan" Click="Rescan_Click" Margin="0" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Show on" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="{StaticResource Muted}" />
+                            <ComboBox x:Name="TargetCombo" DisplayMemberPath="Label" />
+                        </StackPanel>
+                    </DockPanel>
+                    <ItemsControl x:Name="FoldersList" Margin="0,12,0,8">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource Raised}" CornerRadius="12" Padding="10,3,4,3" Margin="0,0,6,6">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding}" Foreground="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" />
+                                        <Button Content="x" Padding="6,0" Margin="6,0,0,0" BorderThickness="0" Background="Transparent"
+                                                Tag="{Binding}" Click="RemoveFolder_Click" ToolTip="Remove folder from library" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+                <TextBlock x:Name="LibraryEmpty" DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,20" Visibility="Collapsed"
+                           Text="No videos yet. Add a folder with .mp4, .mkv, .webm, .mov or .gif files." />
+                <ListBox x:Name="VideoList" ScrollViewer.HorizontalScrollBarVisibility="Disabled" MouseDoubleClick="VideoList_MouseDoubleClick"
+                         ContextMenuOpening="VideoList_ContextMenuOpening" VirtualizingPanel.ScrollUnit="Pixel">
+                    <ListBox.ContextMenu><ContextMenu /></ListBox.ContextMenu>
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Width="232" Margin="2">
+                                <Grid Height="130">
+                                    <Border Background="{StaticResource Raised}" CornerRadius="6" />
+                                    <Border CornerRadius="6" ClipToBounds="True">
+                                        <Image Source="{Binding Thumb}" Stretch="UniformToFill" />
+                                    </Border>
+                                    <Border Background="{StaticResource Accent}" CornerRadius="4" Padding="6,2" Margin="6"
+                                            HorizontalAlignment="Left" VerticalAlignment="Top" Visibility="{Binding PlayingVisibility}">
+                                        <TextBlock Text="{Binding PlayingLabel}" FontSize="11" Foreground="White" />
+                                    </Border>
+                                </Grid>
+                                <TextBlock Text="{Binding Name}" Margin="2,6,2,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding Path}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </TabItem>
+
+        <!-- Playlists -->
+        <TabItem Header="Playlists">
+            <Grid Margin="24,20,24,20">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <StackPanel>
+                    <TextBlock Text="Playlists" Style="{StaticResource H1}" />
+                    <TextBlock Style="{StaticResource Hint}" Text="Group wallpapers and give each screen its own playlist on the Screens page. Add videos from the Library with right-click, Add to playlist." />
+                </StackPanel>
+                <Grid Grid.Row="1" Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="240" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Style="{StaticResource Card}">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0">
+                                <Button Content="New" Style="{StaticResource Primary}" Click="NewPlaylist_Click" />
+                                <Button Content="Delete" Click="DeletePlaylist_Click" />
+                            </StackPanel>
+                            <ListBox x:Name="PlaylistList" DisplayMemberPath="Name" SelectionChanged="PlaylistList_SelectionChanged" />
+                        </DockPanel>
+                    </Border>
+                    <Border Grid.Column="2" Style="{StaticResource Card}">
+                        <DockPanel x:Name="PlaylistEditor" IsEnabled="False">
+                            <StackPanel DockPanel.Dock="Top">
+                                <TextBlock Text="Name" Style="{StaticResource Hint}" />
+                                <TextBox x:Name="PlaylistName" Margin="0,4,0,12" MaxWidth="360" HorizontalAlignment="Left" Width="360" LostFocus="PlaylistName_Changed" KeyDown="PlaylistName_KeyDown" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                    <CheckBox x:Name="PlaylistShuffle" Style="{StaticResource Switch}" Content="Shuffle" Checked="PlaylistSetting_Changed" Unchecked="PlaylistSetting_Changed" Margin="0,0,24,0" />
+                                    <TextBlock Text="Change every" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <TextBox x:Name="PlaylistInterval" Width="56" LostFocus="PlaylistSetting_Changed" ToolTip="Leave empty to use the default interval" />
+                                    <TextBlock Text="minutes (empty = default)" VerticalAlignment="Center" Margin="8,0,0,0" Foreground="{StaticResource Muted}" />
+                                </StackPanel>
+                            </StackPanel>
+                            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0">
+                                <Button Content="Move up" Click="PlaylistUp_Click" />
+                                <Button Content="Move down" Click="PlaylistDown_Click" />
+                                <Button Content="Remove" Click="PlaylistRemove_Click" />
+                            </StackPanel>
+                            <ListBox x:Name="PlaylistItems" DisplayMemberPath="Name" />
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </Grid>
+        </TabItem>
+
+        <!-- Screens -->
+        <TabItem Header="Screens">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="24,20,24,20" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Text="Screens" Style="{StaticResource H1}" />
+                    <TextBlock Style="{StaticResource Hint}" Text="Choose what each monitor shows. A pinned wallpaper stays until you unpin it." />
+                    <Border Style="{StaticResource Card}" Margin="0,16,0,10">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Layout" VerticalAlignment="Center" Width="120" />
+                            <ComboBox x:Name="MonitorModeCombo" DisplayMemberPath="Label" SelectionChanged="Setting_Changed" MinWidth="260" />
+                        </StackPanel>
+                    </Border>
+                    <StackPanel x:Name="ScreensPanel" />
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
+        <!-- Pause rules -->
+        <TabItem Header="Game mode">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="24,20,24,20" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Text="Game mode" Style="{StaticResource H1}" />
+                    <TextBlock Style="{StaticResource Hint}" Text="When to step aside. Freeze pauses the video and keeps the frame. Stop closes the player and shows a still image, so it uses no GPU or VRAM at all. If several rules match, the strictest one wins." />
+                    <Border Style="{StaticResource Card}" Margin="0,16,0,10">
+                        <Grid x:Name="RulesGrid">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="260" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="38" /><RowDefinition Height="38" /><RowDefinition Height="38" />
+                                <RowDefinition Height="38" /><RowDefinition Height="38" /><RowDefinition Height="38" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Fullscreen or borderless game" VerticalAlignment="Center" />
+                            <ComboBox x:Name="RuleFullscreen" Grid.Column="1" DisplayMemberPath="Label" SelectionChanged="Setting_Changed" HorizontalAlignment="Left" MinWidth="240" />
+                            <TextBlock Grid.Row="1" Text="Maximized window in front" VerticalAlignment="Center" />
+                            <ComboBox x:Name="RuleMaximized" Grid.Row="1" Grid.Column="1" DisplayMemberPath="Label" SelectionChanged="Setting_Changed" HorizontalAlignment="Left" MinWidth="240" />
+                            <TextBlock Grid.Row="2" Text="On battery" VerticalAlignment="Center" />
+                            <ComboBox x:Name="RuleBattery" Grid.Row="2" Grid.Column="1" DisplayMemberPath="Label" SelectionChanged="Setting_Changed" HorizontalAlignment="Left" MinWidth="240" />
+                            <TextBlock Grid.Row="3" Text="Screen locked" VerticalAlignment="Center" />
+                            <ComboBox x:Name="RuleLocked" Grid.Row="3" Grid.Column="1" DisplayMemberPath="Label" SelectionChanged="Setting_Changed" HorizontalAlignment="Left" MinWidth="240" />
+                            <TextBlock Grid.Row="4" Text="Display off" VerticalAlignment="Center" />
+                            <ComboBox x:Name="RuleDisplayOff" Grid.Row="4" Grid.Column="1" DisplayMemberPath="Label" SelectionChanged="Setting_Changed" HorizontalAlignment="Left" MinWidth="240" />
+                            <TextBlock Grid.Row="5" Text="Which screens pause" VerticalAlignment="Center" />
+                            <ComboBox x:Name="RuleScope" Grid.Row="5" Grid.Column="1" DisplayMemberPath="Label" SelectionChanged="Setting_Changed" HorizontalAlignment="Left" MinWidth="240" />
+                        </Grid>
+                    </Border>
+
+                    <TextBlock Text="Games and apps" Style="{StaticResource H2}" />
+                    <TextBlock Style="{StaticResource Hint}" Text="Pause whenever one of these is running (even in the background) or only while it is in front." />
+                    <Border Style="{StaticResource Card}" Margin="0,8,0,10">
+                        <StackPanel>
+                            <StackPanel x:Name="AppsPanel" />
+                            <TextBlock x:Name="AppsEmpty" Text="No apps yet." Style="{StaticResource Hint}" Margin="0,0,0,8" />
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <ComboBox x:Name="RunningApps" MinWidth="260" IsEditable="False" DropDownOpened="RunningApps_DropDownOpened" />
+                                <Button Content="Add" Style="{StaticResource Primary}" Click="AddRunningApp_Click" Margin="8,0,8,0" />
+                                <Button Content="Browse for .exe..." Click="BrowseApp_Click" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Text="GPU load" Style="{StaticResource H2}" />
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <CheckBox x:Name="GpuEnabled" Style="{StaticResource Switch}" Content="Pause when other programs keep the GPU busy" Checked="Setting_Changed" Unchecked="Setting_Changed" />
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <TextBlock Text="Above" VerticalAlignment="Center" Width="60" />
+                                <Slider x:Name="GpuThreshold" Minimum="30" Maximum="99" Width="240" VerticalAlignment="Center" IsSnapToTickEnabled="True" TickFrequency="1"
+                                        ValueChanged="GpuThreshold_ValueChanged" PreviewMouseUp="Setting_Changed" />
+                                <TextBlock x:Name="GpuThresholdText" VerticalAlignment="Center" Margin="10,0,24,0" Width="40" />
+                                <ComboBox x:Name="GpuAction" DisplayMemberPath="Label" SelectionChanged="Setting_Changed" MinWidth="200" />
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0" Text="Needs about 6 seconds above the limit to trigger. Off by default because reading the GPU counters costs a little." />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
+        <!-- Performance -->
+        <TabItem Header="Performance">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="24,20,24,20" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Text="Performance" Style="{StaticResource H1}" />
+                    <TextBlock Style="{StaticResource Hint}" Text="Live cost of the wallpaper on this PC, refreshed every 2 seconds while this page is open." />
+                    <UniformGrid x:Name="StatsGrid" Columns="4" Margin="0,16,0,6">
+                        <Border Style="{StaticResource Card}" Margin="0,0,10,0"><StackPanel><TextBlock Text="Engine RAM" Style="{StaticResource Hint}" /><TextBlock x:Name="StatEngineRam" Text="-" FontSize="22" FontWeight="SemiBold" /></StackPanel></Border>
+                        <Border Style="{StaticResource Card}" Margin="0,0,10,0"><StackPanel><TextBlock Text="Engine CPU" Style="{StaticResource Hint}" /><TextBlock x:Name="StatEngineCpu" Text="-" FontSize="22" FontWeight="SemiBold" /></StackPanel></Border>
+                        <Border Style="{StaticResource Card}" Margin="0,0,10,0"><StackPanel><TextBlock Text="Video player RAM" Style="{StaticResource Hint}" /><TextBlock x:Name="StatMpvRam" Text="-" FontSize="22" FontWeight="SemiBold" /></StackPanel></Border>
+                        <Border Style="{StaticResource Card}" Margin="0"><StackPanel><TextBlock Text="Video player CPU" Style="{StaticResource Hint}" /><TextBlock x:Name="StatMpvCpu" Text="-" FontSize="22" FontWeight="SemiBold" /></StackPanel></Border>
+                    </UniformGrid>
+                    <TextBlock x:Name="StatNote" Style="{StaticResource Hint}" />
+
+                    <TextBlock Text="Video player" Style="{StaticResource H2}" />
+                    <Border Style="{StaticResource Card}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="260" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="38" /><RowDefinition Height="38" /><RowDefinition Height="38" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Hardware decoding" VerticalAlignment="Center" />
+                            <ComboBox x:Name="HwdecCombo" Grid.Column="1" DisplayMemberPath="Label" SelectionChanged="Setting_Changed" HorizontalAlignment="Left" MinWidth="260" />
+                            <TextBlock Grid.Row="1" Text="Player priority" VerticalAlignment="Center" />
+                            <ComboBox x:Name="PriorityCombo" Grid.Row="1" Grid.Column="1" DisplayMemberPath="Label" SelectionChanged="Setting_Changed" HorizontalAlignment="Left" MinWidth="260" />
+                            <TextBlock Grid.Row="2" Text="Sound" VerticalAlignment="Center" />
+                            <CheckBox x:Name="MuteSwitch" Grid.Row="2" Grid.Column="1" Style="{StaticResource Switch}" Content="Mute wallpapers" Checked="Setting_Changed" Unchecked="Setting_Changed" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <TextBlock Style="{StaticResource Hint}" Text="Changing these restarts the wallpapers." />
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
+        <!-- General -->
+        <TabItem Header="General">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="24,20,24,20" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Text="General" Style="{StaticResource H1}" />
+                    <Border Style="{StaticResource Card}" Margin="0,16,0,10">
+                        <StackPanel>
+                            <CheckBox x:Name="StartupSwitch" Style="{StaticResource Switch}" Content="Start with Windows" Checked="Startup_Click" Unchecked="Startup_Click" />
+                            <CheckBox x:Name="ShuffleSwitch" Style="{StaticResource Switch}" Content="Shuffle the library (otherwise alphabetical)" Checked="Setting_Changed" Unchecked="Setting_Changed" />
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <TextBlock Text="Change wallpaper every" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBox x:Name="IntervalBox" Width="56" LostFocus="Setting_Changed" />
+                                <TextBlock Text="minutes" VerticalAlignment="Center" Margin="8,0,0,0" Foreground="{StaticResource Muted}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Open log" Click="OpenLog_Click" />
+                            <Button Content="Open settings file" Click="OpenSettings_Click" />
+                            <Button Content="Clear thumbnail cache" Click="ClearThumbs_Click" />
+                        </StackPanel>
+                    </Border>
+                    <TextBlock x:Name="VersionText" Style="{StaticResource Hint}" Margin="0,8,0,0" />
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+    </TabControl>
+</Window>

@@ -10,7 +10,7 @@ namespace Wpe.Engine;
 public sealed class Engine : Win32Window
 {
     const nuint TimerPoll = 1, TimerDisplayChange = 2, TimerReattach = 3;
-    const int CmdNext = 1, CmdPause = 2, CmdOpenFolder = 3, CmdReload = 4, CmdOpenSettings = 5, CmdExit = 9;
+    const int CmdOpenUi = 6, CmdNext = 1, CmdPause = 2, CmdOpenFolder = 3, CmdReload = 4, CmdOpenSettings = 5, CmdExit = 9;
 
     static readonly uint s_taskbarCreated = Native.RegisterWindowMessage("TaskbarCreated");
 
@@ -67,28 +67,56 @@ public sealed class Engine : Win32Window
         foreach (var h in _hosts)
         {
             Log.Write($"host {h.Id} at {h.Bounds} parent {workerW:X}");
-            string? file = previous.TryGetValue(h.Id, out var prev) && prev != null && File.Exists(prev) ? prev : Pick(h);
+            string? pinned = Pinned(h);
+            string? file = pinned ?? (previous.TryGetValue(h.Id, out var prev) && prev != null && File.Exists(prev) && InSource(h, prev) ? prev : Pick(h));
             if (file == null) { Log.Write("no videos found"); continue; }
             if (_mpvExe != null) h.Play(_mpvExe, file, _settings);   // the next poll pauses it if a rule says so
-            h.NextChange = DateTime.UtcNow.AddMinutes(_settings.IntervalMinutes);
+            h.NextChange = NextChangeFor(h);
         }
         UpdateTooltip();
     }
 
+    string? Pinned(MonitorHost h)
+    {
+        string? p = _settings.ScreenFor(h.Id)?.Pinned;
+        return p != null && File.Exists(p) ? p : null;
+    }
+
+    Playlist? PlaylistFor(MonitorHost h) => _settings.FindPlaylist(_settings.ScreenFor(h.Id)?.Playlist);
+
+    /// <summary>Videos this screen rotates through: its playlist, or the whole library.</summary>
+    List<string> Source(MonitorHost h)
+    {
+        var pl = PlaylistFor(h);
+        if (pl != null)
+        {
+            var items = pl.Items.Where(File.Exists).ToList();
+            if (items.Count > 0) return items;
+        }
+        return _settings.ScanVideos();
+    }
+
+    bool InSource(MonitorHost h, string file) => Source(h).Contains(file, StringComparer.OrdinalIgnoreCase);
+
+    DateTime NextChangeFor(MonitorHost h) =>
+        Pinned(h) != null ? DateTime.MaxValue : DateTime.UtcNow.AddMinutes(Math.Max(1, PlaylistFor(h)?.IntervalMinutes ?? _settings.IntervalMinutes));
+
     string? Pick(MonitorHost host)
     {
-        var all = _settings.ScanVideos();
+        var all = Source(host);
         if (all.Count == 0) return null;
+        bool shuffle = PlaylistFor(host)?.Shuffle ?? _settings.Shuffle;
+        if (!shuffle)
+        {
+            // Playlists keep their own order; the library goes alphabetically.
+            if (PlaylistFor(host) == null) all.Sort(StringComparer.OrdinalIgnoreCase);
+            int i = host.Current == null ? -1 : all.FindIndex(f => string.Equals(f, host.Current, StringComparison.OrdinalIgnoreCase));
+            return all[(i + 1) % all.Count];
+        }
         var inUse = _hosts.Where(h => h != host && h.Current != null).Select(h => h.Current!).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var candidates = all.Where(f => !string.Equals(f, host.Current, StringComparison.OrdinalIgnoreCase) && !inUse.Contains(f)).ToList();
         if (candidates.Count == 0) candidates = all.Where(f => !string.Equals(f, host.Current, StringComparison.OrdinalIgnoreCase)).ToList();
         if (candidates.Count == 0) candidates = all;
-        if (!_settings.Shuffle)
-        {
-            all.Sort(StringComparer.OrdinalIgnoreCase);
-            int i = host.Current == null ? -1 : all.FindIndex(f => string.Equals(f, host.Current, StringComparison.OrdinalIgnoreCase));
-            return all[(i + 1) % all.Count];
-        }
         return candidates[_rnd.Next(candidates.Count)];
     }
 
@@ -96,7 +124,7 @@ public sealed class Engine : Win32Window
     {
         if (h.Applied.Action != PauseAction.None || _mpvExe == null) h.SetPendingFile(file);
         else h.Play(_mpvExe, file, _settings);
-        h.NextChange = DateTime.UtcNow.AddMinutes(_settings.IntervalMinutes);
+        h.NextChange = NextChangeFor(h);
         Log.Write($"{h.Id}: {file}");
         _control?.Broadcast(new ControlEvent { Event = "wallpaperChanged", Monitor = h.Id, Path = file });
     }
@@ -228,12 +256,38 @@ public sealed class Engine : Win32Window
         return s;
     }
 
+    /// <summary>
+    /// Applies changed settings. Only changes that affect how mpv runs or the screen layout restart the
+    /// wallpapers; playlist, pin and interval changes are applied in place (no flicker).
+    /// </summary>
     void Reload()
     {
+        var old = _settings;
+        var oldSig = _hosts.ToDictionary(h => h.Id, ScreenSignature);
         _settings = Settings.Load();
         _mpvExe = Paths.FindMpv(_settings);
-        Log.Write("settings reloaded");
-        BuildHosts();
+        bool rebuild = old.MonitorMode != _settings.MonitorMode || old.Hwdec != _settings.Hwdec || old.Mute != _settings.Mute
+            || old.MpvPriority != _settings.MpvPriority || old.MpvPath != _settings.MpvPath || _hosts.Count == 0;
+        Log.Write("settings reloaded" + (rebuild ? " (restarting wallpapers)" : ""));
+        if (rebuild) { BuildHosts(); return; }
+
+        foreach (var h in _hosts)
+        {
+            if (oldSig.TryGetValue(h.Id, out var sig) && sig == ScreenSignature(h)) continue;
+            string? pinned = Pinned(h);
+            if (pinned != null) { if (!string.Equals(pinned, h.Current, StringComparison.OrdinalIgnoreCase)) SetWallpaper(h, pinned); }
+            else if (h.Current == null || !InSource(h, h.Current)) Next(h);
+            h.NextChange = NextChangeFor(h);
+        }
+    }
+
+    /// <summary>Everything about a screen's rotation that a settings change could alter.</summary>
+    string ScreenSignature(MonitorHost h)
+    {
+        var a = _settings.ScreenFor(h.Id);
+        var pl = PlaylistFor(h);
+        return string.Join("|", a?.Pinned, a?.Playlist, pl?.Shuffle, pl?.IntervalMinutes, pl == null ? "" : string.Join(";", pl.Items),
+            _settings.IntervalMinutes, _settings.Shuffle, string.Join(";", _settings.Folders));
     }
 
     // ---------- window messages ----------
@@ -242,6 +296,8 @@ public sealed class Engine : Win32Window
     {
         int cmd = _tray!.ShowMenu(new (int, string, bool)[]
         {
+            (CmdOpenUi, "Open Phantom Render", false),
+            (0, "", false),
             (CmdNext, "Next wallpaper", false),
             (CmdPause, "Pause", _manualPause),
             (0, "", false),
@@ -253,6 +309,7 @@ public sealed class Engine : Win32Window
         });
         switch (cmd)
         {
+            case CmdOpenUi: OpenUi(); break;
             case CmdNext: foreach (var h in _hosts) Next(h); break;
             case CmdPause: _manualPause = !_manualPause; ApplyRules(); break;
             case CmdOpenFolder: if (_settings.Folders.Count > 0) Open(_settings.Folders[0]); break;
@@ -260,6 +317,14 @@ public sealed class Engine : Win32Window
             case CmdReload: Reload(); break;
             case CmdExit: Native.PostQuitMessage(0); break;
         }
+    }
+
+    /// <summary>Starts the control panel (a separate process that exits when its window closes).</summary>
+    static void OpenUi()
+    {
+        string ui = Path.Combine(AppContext.BaseDirectory, Paths.UiExe);
+        if (File.Exists(ui)) Open(ui);
+        else { Log.Write("control panel not found: " + ui); Open(Paths.SettingsFile); }
     }
 
     static void Open(string path)
@@ -287,7 +352,7 @@ public sealed class Engine : Win32Window
         {
             uint ev = (uint)(l & 0xFFFF);
             if (ev is Native.WM_CONTEXTMENU or Native.WM_RBUTTONUP) ShowTrayMenu();
-            else if (ev == Native.WM_LBUTTONDBLCLK) foreach (var host in _hosts) Next(host);
+            else if (ev == Native.WM_LBUTTONDBLCLK) OpenUi();
             return 0;
         }
         if (msg == ControlServer.WakeMessage) { _control?.ProcessQueue(HandleRequest); return 0; }

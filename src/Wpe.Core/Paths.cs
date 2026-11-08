@@ -9,6 +9,9 @@ public static class Paths
     public static string FramesDir => Path.Combine(LocalDir, "frames");
     public static string ThumbsDir => Path.Combine(LocalDir, "thumbs");
 
+    public const string EngineExe = "WallpaperEngine.exe";
+    public const string UiExe = "PhantomRender.exe";
+
     /// <summary>mpv.exe: explicit setting, then next to the app, then an mpv sub-folder.</summary>
     public static string? FindMpv(Settings s)
     {
