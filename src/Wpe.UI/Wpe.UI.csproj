@@ -9,11 +9,16 @@
     <RootNamespace>Wpe.UI</RootNamespace>
     <Version>0.3.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\..\assets\phantom.ico</ApplicationIcon>
     <!-- Lower startup cost: ReadyToRun precompiles, tiered PGO off keeps memory steady. -->
     <PublishReadyToRun>true</PublishReadyToRun>
     <TieredPGO>false</TieredPGO>
     <!-- No InvariantGlobalization: WPF needs real cultures for text layout. -->
   </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="..\..\assets\phantom.ico" Link="Assets\phantom.ico" />
+    <Resource Include="..\..\assets\icon.png" Link="Assets\icon.png" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Wpe.Core\Wpe.Core.csproj" />
   </ItemGroup>

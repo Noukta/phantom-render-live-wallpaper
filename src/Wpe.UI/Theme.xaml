@@ -285,9 +285,13 @@
                         </Grid.ColumnDefinitions>
                         <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0">
                             <DockPanel Margin="10,16,10,12">
-                                <StackPanel DockPanel.Dock="Top" Margin="8,0,0,18">
-                                    <TextBlock Text="Phantom Render" FontSize="17" FontWeight="SemiBold" />
-                                    <TextBlock Text="live wallpaper" Style="{StaticResource Hint}" />
+                                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="4,0,0,18">
+                                    <Image Source="pack://application:,,,/Assets/icon.png" Width="40" Height="40" Margin="0,0,10,0"
+                                           RenderOptions.BitmapScalingMode="HighQuality" />
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="Phantom Render" FontSize="16" FontWeight="SemiBold" />
+                                        <TextBlock Text="live wallpaper" Style="{StaticResource Hint}" />
+                                    </StackPanel>
                                 </StackPanel>
                                 <ContentPresenter DockPanel.Dock="Bottom" Content="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" />
                                 <StackPanel IsItemsHost="True" />

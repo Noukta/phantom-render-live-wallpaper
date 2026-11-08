@@ -177,6 +177,12 @@ public static unsafe partial class Native
     public static partial int GetCursorPos(out POINT p);
     [LibraryImport("user32.dll", EntryPoint = "LoadIconW")]
     public static partial nint LoadIcon(nint inst, nint id);
+    [LibraryImport("user32.dll", EntryPoint = "LoadImageW")]
+    public static partial nint LoadImage(nint inst, nint name, uint type, int cx, int cy, uint flags);
+    [LibraryImport("user32.dll")]
+    public static partial int GetSystemMetricsForDpi(int index, uint dpi);
+    [LibraryImport("user32.dll")]
+    public static partial uint GetDpiForSystem();
     [LibraryImport("user32.dll")]
     public static partial int InvalidateRect(nint h, nint rect, int erase);
     [LibraryImport("user32.dll")]

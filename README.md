@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/icon.png" width="128" alt="Phantom Render ghost icon"></p>
+
 # Phantom Render – live wallpaper for gamers
 
 Live video wallpapers for Windows, built for gamers. It's light while you play, and it gets out of the way when a game is fullscreen.

@@ -8,6 +8,7 @@
     <AssemblyName>WallpaperEngine</AssemblyName>
     <RootNamespace>Wpe.Engine</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\..\assets\phantom.ico</ApplicationIcon>
     <Version>0.2.0</Version>
     <!-- Small, fast-starting native binary with no .NET runtime dependency. -->
     <PublishAot>true</PublishAot>

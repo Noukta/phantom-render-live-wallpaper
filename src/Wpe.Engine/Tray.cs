@@ -16,11 +16,26 @@ public sealed unsafe class Tray : IDisposable
         NOTIFYICONDATAW d = Data();
         d.uFlags = Native.NIF_MESSAGE | Native.NIF_ICON | Native.NIF_TIP | Native.NIF_SHOWTIP;
         d.uCallbackMessage = CallbackMessage;
-        d.hIcon = Native.LoadIcon(0, 32512 /* IDI_APPLICATION */);
+        d.hIcon = AppIcon();
         SetTip(ref d, "Phantom Render");
         _added = Native.Shell_NotifyIcon(Native.NIM_ADD, &d) != 0;
         d.uVersion = 4;
         Native.Shell_NotifyIcon(Native.NIM_SETVERSION, &d);
+    }
+
+    static nint s_icon;
+
+    /// <summary>The ghost icon embedded in the exe, at the tray's size for the current DPI.</summary>
+    static nint AppIcon()
+    {
+        if (s_icon != 0) return s_icon;
+        uint dpi = Native.GetDpiForSystem();
+        int size = Native.GetSystemMetricsForDpi(49 /* SM_CXSMICON */, dpi);
+        nint inst = Native.GetModuleHandle(0);
+        // The compiler stores ApplicationIcon as icon group 32512.
+        s_icon = Native.LoadImage(inst, 32512, 1 /* IMAGE_ICON */, size, size, 0);
+        if (s_icon == 0) { Log.Write("app icon not found, using default"); s_icon = Native.LoadIcon(0, 32512 /* IDI_APPLICATION */); }
+        return s_icon;
     }
 
     public void SetTooltip(string text)
