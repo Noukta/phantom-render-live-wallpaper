@@ -32,7 +32,30 @@ public sealed class VideoItem : Observable
     public string Name => System.IO.Path.GetFileNameWithoutExtension(Path);
 
     BitmapImage? _thumb;
-    public BitmapImage? Thumb { get => _thumb; set => Set(ref _thumb, value); }
+    public BitmapImage? Thumb
+    {
+        get => _thumb;
+        set { Set(ref _thumb, value); if (_frame == null) Raise(nameof(Display)); }
+    }
+
+    BitmapImage? _frame;
+    /// <summary>The animated preview frame while hovered; null shows the still thumbnail.</summary>
+    public BitmapImage? Frame
+    {
+        get => _frame;
+        set { Set(ref _frame, value); Raise(nameof(Display)); }
+    }
+
+    /// <summary>What the card shows: the preview frame while hovering, otherwise the thumbnail.</summary>
+    public BitmapImage? Display => _frame ?? _thumb;
+
+    bool _loadingPreview;
+    public bool LoadingPreview
+    {
+        get => _loadingPreview;
+        set { Set(ref _loadingPreview, value); Raise(nameof(LoadingVisibility)); }
+    }
+    public Visibility LoadingVisibility => _loadingPreview ? Visibility.Visible : Visibility.Collapsed;
 
     string? _playingOn;
     /// <summary>Screens currently showing this video, e.g. "Now playing" or "Screen 1, 2".</summary>

@@ -45,6 +45,7 @@ public partial class MainWindow : Window
         _saveTimer.Tick += async (_, _) => { _saveTimer.Stop(); await SaveNowAsync(); };
         _stateTimer.Tick += async (_, _) => await RefreshStateAsync();
         _statsTimer.Tick += async (_, _) => await RefreshStatsAsync();
+        _previewTimer.Tick += (_, _) => PreviewTick();
         _engine.ConnectionChanged += async c => { UpdateStatus(); if (c) await RefreshStateAsync(); };
         _engine.EventReceived += async _ => await RefreshStateAsync();
 
@@ -225,6 +226,7 @@ public partial class MainWindow : Window
 
     void LoadLibrary()
     {
+        StopPreview();
         var files = _settings.ScanVideos().Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase).ToList();
         _videos.Clear();
         foreach (var f in files) _videos.Add(new VideoItem(f) { Thumb = Thumbnails.LoadCached(f) });
@@ -242,6 +244,67 @@ public partial class MainWindow : Window
             var img = await Task.Run(() => _thumbs.GetAsync(v.Path, mpv, _closing.Token));
             if (img != null) v.Thumb = img;
         }
+        // Then prepare hover previews in the background (idle priority, paused while a game rule is active).
+        foreach (var v in _videos.ToList())
+        {
+            if (_closing.IsCancellationRequested) return;
+            if (!Thumbnails.HasPreview(v.Path)) await Task.Run(() => _thumbs.GetPreviewAsync(v.Path, mpv, false, _closing.Token));
+        }
+    }
+
+    // ---------------------------------------------------------------- hover previews
+
+    readonly DispatcherTimer _previewTimer = new() { Interval = TimeSpan.FromMilliseconds(1000.0 / Thumbnails.PreviewFps) };
+    CancellationTokenSource? _hoverCts;
+    VideoItem? _hovered;
+    List<System.Windows.Media.Imaging.BitmapImage>? _frames;
+    int _frameIndex;
+
+    async void VideoCard_MouseEnter(object sender, MouseEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not VideoItem v) return;
+        StopPreview();
+        _hovered = v;
+        var cts = _hoverCts = CancellationTokenSource.CreateLinkedTokenSource(_closing.Token);
+        try
+        {
+            // Small delay so sweeping the mouse across the grid doesn't start work for every card.
+            await Task.Delay(180, cts.Token);
+            v.LoadingPreview = !Thumbnails.HasPreview(v.Path);
+            string? mpv = Paths.FindMpv(_settings);
+            var files = await Task.Run(() => _thumbs.GetPreviewAsync(v.Path, mpv, true, cts.Token));
+            if (files == null || cts.IsCancellationRequested) return;
+            var frames = await Task.Run(() => Thumbnails.LoadFrames(files), cts.Token);
+            if (cts.IsCancellationRequested || frames.Count == 0 || _hovered != v) return;
+            _frames = frames;
+            _frameIndex = 0;
+            v.Frame = frames[0];
+            _previewTimer.Start();
+        }
+        catch (OperationCanceledException) { }
+        finally { v.LoadingPreview = false; }
+    }
+
+    void VideoCard_MouseLeave(object sender, MouseEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is VideoItem v && v == _hovered) StopPreview();
+    }
+
+    void PreviewTick()
+    {
+        if (_hovered == null || _frames == null || _frames.Count == 0) { _previewTimer.Stop(); return; }
+        _frameIndex = (_frameIndex + 1) % _frames.Count;
+        _hovered.Frame = _frames[_frameIndex];
+    }
+
+    void StopPreview()
+    {
+        _previewTimer.Stop();
+        _hoverCts?.Cancel();
+        _hoverCts = null;
+        if (_hovered != null) { _hovered.Frame = null; _hovered.LoadingPreview = false; }
+        _hovered = null;
+        _frames = null;   // frames of one video only, released when the mouse leaves
     }
 
     void AddFolder_Click(object sender, RoutedEventArgs e)

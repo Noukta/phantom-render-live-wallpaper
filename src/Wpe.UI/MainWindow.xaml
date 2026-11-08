@@ -68,11 +68,16 @@
                     </ListBox.ItemsPanel>
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <StackPanel Width="232" Margin="2">
+                            <StackPanel Width="232" Margin="2" Background="Transparent"
+                                        MouseEnter="VideoCard_MouseEnter" MouseLeave="VideoCard_MouseLeave">
                                 <Grid Height="130">
                                     <Border Background="{StaticResource Raised}" CornerRadius="6" />
                                     <Border CornerRadius="6" ClipToBounds="True">
-                                        <Image Source="{Binding Thumb}" Stretch="UniformToFill" />
+                                        <Image Source="{Binding Display}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="LowQuality" />
+                                    </Border>
+                                    <Border Background="#AA000000" CornerRadius="4" Padding="6,2" Margin="6"
+                                            HorizontalAlignment="Right" VerticalAlignment="Bottom" Visibility="{Binding LoadingVisibility}">
+                                        <TextBlock Text="preparing preview..." FontSize="11" Foreground="White" />
                                     </Border>
                                     <Border Background="{StaticResource Accent}" CornerRadius="4" Padding="6,2" Margin="6"
                                             HorizontalAlignment="Left" VerticalAlignment="Top" Visibility="{Binding PlayingVisibility}">
