@@ -22,4 +22,12 @@
   <ItemGroup>
     <ProjectReference Include="..\Wpe.Core\Wpe.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Program.cs has its own Main so Velopack's install/update/uninstall hooks run before any window. -->
+    <ApplicationDefinition Remove="App.xaml" />
+    <Page Include="App.xaml" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Velopack" Version="1.2.161" />
+  </ItemGroup>
 </Project>

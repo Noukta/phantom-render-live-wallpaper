@@ -6,6 +6,8 @@ namespace Wpe.Core;
 public sealed class Settings
 {
     public int Version { get; set; } = 1;
+    /// <summary>The first-run setup was completed.</summary>
+    public bool SetupDone { get; set; }
     /// <summary>Folders scanned (recursively) for wallpapers.</summary>
     public List<string> Folders { get; set; } = new();
     public int IntervalMinutes { get; set; } = 10;

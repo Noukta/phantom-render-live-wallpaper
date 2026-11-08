@@ -11,3 +11,4 @@ tools/mpv/
 # legacy v0.1 build outputs and logs
 WallpaperEngine.exe
 wpe.log
+releases/

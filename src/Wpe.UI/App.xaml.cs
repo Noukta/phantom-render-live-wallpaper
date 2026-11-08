@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows;
+using Wpe.Core;
 
 namespace Wpe.UI;
 
@@ -28,6 +29,20 @@ public partial class App : Application
             return;
         }
         base.OnStartup(e);
-        new MainWindow().Show();
+
+        // The first time (or after a fresh install) ask the three setup questions; after that just make
+        // sure the engine is running (e.g. after an update restarted the app) and open the panel.
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        var settings = Settings.Load();
+        if (!settings.SetupDone)
+        {
+            if (new SetupWindow(settings).ShowDialog() != true) { Shutdown(); return; }
+        }
+        else Program.StartEngine();
+
+        var main = new MainWindow();
+        MainWindow = main;
+        ShutdownMode = ShutdownMode.OnMainWindowClose;
+        main.Show();
     }
 }

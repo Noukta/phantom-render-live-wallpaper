@@ -11,6 +11,25 @@ Live video wallpapers for Windows, built for gamers. It's light while you play, 
 - The engine is a small native (NativeAOT) exe, about 16 MB of RAM and ~0% CPU while idle.
 - The control panel (`PhantomRender.exe`) is a separate program you open from the tray. When you close it, it's gone, so it costs nothing while you play.
 
+## Install
+
+1. Download `PhantomRender-win-Setup.exe` from the [latest release](../../releases/latest) and run it. You don't need admin rights; it installs only for your user account.
+2. Windows may say *"Windows protected your PC"* because the installer isn't code-signed yet. Click **More info → Run anyway**.
+3. A short setup asks three things:
+   - your video folder
+   - what happens while you play (stop or freeze)
+   - whether to start with Windows
+
+   It also downloads [mpv](https://mpv.io), the open-source video player Phantom Render uses (about 33 MB).
+
+The installer adds the .NET 8 Desktop Runtime if it's missing. Updates install from the control panel (**General → Updates**), and only the changed files are downloaded.
+To uninstall, use **Settings → Apps → Installed apps → Phantom Render**. Uninstalling stops the wallpaper, removes the startup entry and puts your previous Windows wallpaper back.
+
+<p align="center">
+  <img src="docs/screenshots/game-mode.png" width="49%" alt="Game mode settings: what to do for fullscreen games, maximized windows, battery, lock screen and display off">
+  <img src="docs/screenshots/performance.png" width="49%" alt="Performance page with live engine and video player RAM and CPU">
+</p>
+
 ## Control panel
 
 - **Library:** your folders as a thumbnail grid. Double-click to show a video now. Right-click to pin it to a screen or add it to a playlist.
@@ -28,9 +47,13 @@ The control panel needs the [.NET 8 Desktop Runtime](https://dotnet.microsoft.co
 Requires the .NET 8 SDK.
 
 ```powershell
-scripts\get-mpv.ps1     # downloads mpv.exe into tools\mpv
-scripts\build.ps1       # publishes publish\WallpaperEngine.exe + mpv.exe
+scripts\get-mpv.ps1                    # downloads mpv.exe into tools\mpv (for running from publish\)
+scripts\build.ps1 -Version 0.4.0       # publishes the engine + control panel into publish\
+scripts\pack.ps1  -Version 0.4.0       # builds releases\PhantomRender-win-Setup.exe (needs: dotnet tool install -g vpk)
 ```
+
+The engine is built with NativeAOT when the Visual Studio C++ tools are installed. Otherwise it falls back to a regular .NET build.
+Pushing a tag like `v0.4.0` makes GitHub Actions build everything, including the native engine and the installer, and upload a **draft** release for you to review and publish.
 
 ## Settings
 

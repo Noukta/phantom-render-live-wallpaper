@@ -8,10 +8,10 @@ on:
   workflow_dispatch:
 
 jobs:
-  engine:
+  build:
     runs-on: windows-latest
     permissions:
-      contents: write   # only used to create draft releases on version tags
+      contents: write   # only used to upload releases on version tags
     steps:
       - uses: actions/checkout@v4
 
@@ -19,32 +19,49 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      # windows-latest ships Visual Studio with the C++ tools, so this produces a NativeAOT exe.
-      - name: Publish engine (NativeAOT)
-        shell: pwsh
-        run: ./scripts/build.ps1
-
-      - name: Check it is a native build
+      - name: Version
+        id: ver
         shell: pwsh
         run: |
-          $exe = Get-Item publish/WallpaperEngine.exe
-          if (Test-Path publish/WallpaperEngine.dll) { throw 'Expected a NativeAOT build, got a framework-dependent one.' }
-          "WallpaperEngine.exe: {0:N1} MB" -f ($exe.Length / 1MB) | Tee-Object -Append $env:GITHUB_STEP_SUMMARY
+          $v = if ('${{ github.ref }}' -like 'refs/tags/v*') { '${{ github.ref_name }}'.Substring(1) } else { '0.0.0-ci.${{ github.run_number }}' }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      # windows-latest ships Visual Studio with the C++ tools, so the engine is built with NativeAOT.
+      - name: Publish engine (NativeAOT) and control panel
+        shell: pwsh
+        run: ./scripts/build.ps1 -Version ${{ steps.ver.outputs.version }}
+
+      - name: Check the engine is a native build
+        shell: pwsh
+        run: |
+          if (Test-Path publish/WallpaperEngine.dll) { throw 'Expected a NativeAOT engine, got a framework-dependent one.' }
+          "WallpaperEngine.exe: {0:N1} MB" -f ((Get-Item publish/WallpaperEngine.exe).Length / 1MB) | Tee-Object -Append $env:GITHUB_STEP_SUMMARY
 
       - uses: actions/upload-artifact@v4
         with:
-          name: phantom-render-engine-${{ github.sha }}
+          name: phantom-render-${{ steps.ver.outputs.version }}
           path: publish/
           if-no-files-found: error
 
-      - name: Zip for release
+      # ---- releases (version tags only) ----
+      - name: Install vpk
         if: startsWith(github.ref, 'refs/tags/v')
-        shell: pwsh
-        run: Compress-Archive -Path publish/* -DestinationPath "phantom-render-${{ github.ref_name }}-win-x64.zip"
+        run: dotnet tool install -g vpk
 
-      - name: Create GitHub release
+      - name: Fetch the previous release (for delta updates)
         if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
-        run: gh release create "${{ github.ref_name }}" "phantom-render-${{ github.ref_name }}-win-x64.zip" --generate-notes --draft
+        run: vpk download github --repoUrl ${{ github.server_url }}/${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }} --outputDir releases
+        continue-on-error: true   # the first release has nothing to fetch
+
+      - name: Build the installer
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: ./scripts/pack.ps1 -Version ${{ steps.ver.outputs.version }}
+
+      - name: Upload a draft GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: >
+          vpk upload github --repoUrl ${{ github.server_url }}/${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
+          --outputDir releases --tag ${{ github.ref_name }} --releaseName "Phantom Render ${{ steps.ver.outputs.version }}"

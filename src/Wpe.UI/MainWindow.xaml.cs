@@ -8,6 +8,8 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using Velopack;
+using Velopack.Sources;
 using Wpe.Core;
 using Control = Wpe.Core.Control;
 
@@ -15,8 +17,6 @@ namespace Wpe.UI;
 
 public partial class MainWindow : Window
 {
-    const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    const string RunValue = "WallpaperEngine";
 
     static readonly Opt[] Actions =
     {
@@ -46,7 +46,16 @@ public partial class MainWindow : Window
         _stateTimer.Tick += async (_, _) => await RefreshStateAsync();
         _statsTimer.Tick += async (_, _) => await RefreshStatsAsync();
         _previewTimer.Tick += (_, _) => PreviewTick();
-        _engine.ConnectionChanged += async c => { UpdateStatus(); if (c) await RefreshStateAsync(); };
+        bool reloaded = false;
+        _engine.ConnectionChanged += async c =>
+        {
+            UpdateStatus();
+            if (!c) return;
+            // Settings may have changed while the panel was closed (e.g. first-run setup); applying them is cheap.
+            if (!reloaded) { reloaded = true; await _engine.SendAsync(Control.ReloadSettings); }
+            await RefreshStateAsync();
+        };
+        Loaded += async (_, _) => await CheckForUpdatesAsync(false);
         _engine.EventReceived += async _ => await RefreshStateAsync();
 
         // Decode images at the card's real pixel size for this screen's scaling; redo it when the window
@@ -95,7 +104,7 @@ public partial class MainWindow : Window
         SyncWallpaperSwitch.IsChecked = _settings.SyncWindowsWallpaper;
         RestoreWallpaperButton.IsEnabled = WindowsWallpaper.HasOriginal;
         IntervalBox.Text = _settings.IntervalMinutes.ToString();
-        StartupSwitch.IsChecked = Registry.CurrentUser.OpenSubKey(RunKey)?.GetValue(RunValue) != null;
+        StartupSwitch.IsChecked = Program.StartupEntry() != null;
         FoldersList.ItemsSource = _settings.Folders.ToList();
         RebuildApps();
         RefreshPlaylists();
@@ -229,9 +238,8 @@ public partial class MainWindow : Window
 
     void StartEngine_Click(object sender, RoutedEventArgs e)
     {
-        string exe = Path.Combine(AppContext.BaseDirectory, Paths.EngineExe);
-        if (!File.Exists(exe)) { MessageBox.Show(this, "Engine not found: " + exe, "Phantom Render"); return; }
-        Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true, WorkingDirectory = AppContext.BaseDirectory });
+        if (!File.Exists(Program.EngineExe)) { MessageBox.Show(this, "Engine not found: " + Program.EngineExe, "Phantom Render"); return; }
+        Program.StartEngine();
     }
 
     // ---------------------------------------------------------------- library
@@ -675,9 +683,64 @@ public partial class MainWindow : Window
     void Startup_Click(object sender, RoutedEventArgs e)
     {
         if (_loading) return;
-        using var key = Registry.CurrentUser.CreateSubKey(RunKey);
-        if (StartupSwitch.IsChecked == true) key.SetValue(RunValue, "\"" + Path.Combine(AppContext.BaseDirectory, Paths.EngineExe) + "\"");
-        else key.DeleteValue(RunValue, false);
+        Program.SetStartup(StartupSwitch.IsChecked == true);
+    }
+
+    // ---------------------------------------------------------------- updates
+
+    // Releases are published on GitHub; Velopack downloads only the changed parts (delta updates).
+    readonly UpdateManager _updates = new(new GithubSource("https://github.com/Noukta/phantom-render-live-wallpaper", null, false));
+    UpdateInfo? _pendingUpdate;
+
+    async Task CheckForUpdatesAsync(bool userAsked)
+    {
+        if (!_updates.IsInstalled)
+        {
+            UpdateText.Text = "Updates work once Phantom Render is installed with its setup program (this copy runs from a build folder).";
+            UpdateButton.Visibility = Visibility.Collapsed;
+            return;
+        }
+        UpdateText.Text = "Checking for updates...";
+        try
+        {
+            _pendingUpdate = await _updates.CheckForUpdatesAsync();
+            if (_pendingUpdate == null)
+            {
+                UpdateText.Text = $"You have the latest version ({_updates.CurrentVersion}).";
+                UpdateButton.Content = "Check again";
+                return;
+            }
+            string v = _pendingUpdate.TargetFullRelease.Version.ToString();
+            UpdateText.Text = $"Version {v} is available (you have {_updates.CurrentVersion}).";
+            UpdateButton.Content = "Update now";
+            UpdateBanner.Visibility = Visibility.Visible;
+            UpdateBannerText.Text = $"Phantom Render {v} is available.";
+        }
+        catch (Exception ex)
+        {
+            UpdateText.Text = "Couldn't check for updates: " + ex.Message;
+            if (userAsked) MessageBox.Show(this, UpdateText.Text, "Phantom Render");
+        }
+    }
+
+    async void Update_Click(object sender, RoutedEventArgs e)
+    {
+        if (_pendingUpdate == null) { await CheckForUpdatesAsync(true); return; }
+        UpdateButton.IsEnabled = UpdateBannerButton.IsEnabled = false;
+        try
+        {
+            await _updates.DownloadUpdatesAsync(_pendingUpdate, p => Dispatcher.Invoke(() => UpdateText.Text = $"Downloading the update... {p} %"));
+            UpdateText.Text = "Installing the update...";
+            // The engine's files are replaced too; it's started again when the panel restarts.
+            Program.StopEngine();
+            _updates.ApplyUpdatesAndRestart(_pendingUpdate);
+        }
+        catch (Exception ex)
+        {
+            UpdateText.Text = "The update failed: " + ex.Message;
+            UpdateButton.IsEnabled = UpdateBannerButton.IsEnabled = true;
+            Program.StartEngine();
+        }
     }
 
     void RestoreWallpaper_Click(object sender, RoutedEventArgs e)
