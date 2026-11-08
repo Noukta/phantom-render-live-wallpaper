@@ -1,0 +1,50 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  engine:
+    runs-on: windows-latest
+    permissions:
+      contents: write   # only used to create draft releases on version tags
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # windows-latest ships Visual Studio with the C++ tools, so this produces a NativeAOT exe.
+      - name: Publish engine (NativeAOT)
+        shell: pwsh
+        run: ./scripts/build.ps1
+
+      - name: Check it is a native build
+        shell: pwsh
+        run: |
+          $exe = Get-Item publish/WallpaperEngine.exe
+          if (Test-Path publish/WallpaperEngine.dll) { throw 'Expected a NativeAOT build, got a framework-dependent one.' }
+          "WallpaperEngine.exe: {0:N1} MB" -f ($exe.Length / 1MB) | Tee-Object -Append $env:GITHUB_STEP_SUMMARY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phantom-render-engine-${{ github.sha }}
+          path: publish/
+          if-no-files-found: error
+
+      - name: Zip for release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: Compress-Archive -Path publish/* -DestinationPath "phantom-render-${{ github.ref_name }}-win-x64.zip"
+
+      - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: gh release create "${{ github.ref_name }}" "phantom-render-${{ github.ref_name }}-win-x64.zip" --generate-notes --draft
